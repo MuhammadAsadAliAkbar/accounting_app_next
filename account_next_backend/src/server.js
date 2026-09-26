@@ -37,3 +37,5 @@ connectDB().then(() => {
     console.log(`Accounting API running on port ${PORT}`);
   });
 });
+
+module.exports = app
