@@ -1,0 +1,11 @@
+{
+  "name": "accounting-app",
+  "version": "1.0.0",
+  "description": "Complete double-entry accounting system",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "seed": "cd backend && npm run seed",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm run dev"
+  }
+}

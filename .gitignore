@@ -1,0 +1,7 @@
+account_next_backend/.env
+account_next_backend/node_modules
+
+account_next_frontend/.env
+account_next_frontend/node_modules
+
+account_next_python/.env

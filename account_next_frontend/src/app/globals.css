@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.table-accounting th {
+  @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 bg-slate-800/80;
+}
+.table-accounting td {
+  @apply px-4 py-3 text-sm text-slate-200 border-t border-slate-700/50;
+}
+.table-accounting tr:hover td {
+  @apply bg-slate-800/40;
+}
+
+.card {
+  @apply bg-slate-800/60 border border-slate-700/50 rounded-xl shadow-lg backdrop-blur-sm;
+}
+
+.input {
+  @apply w-full px-3 py-2 bg-slate-900/80 border border-slate-600 rounded-lg text-slate-100 
+         placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+         transition-all duration-200;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium 
+         transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+.btn-primary {
+  @apply btn bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20;
+}
+.btn-success {
+  @apply btn bg-emerald-600 hover:bg-emerald-500 text-white;
+}
+.btn-danger {
+  @apply btn bg-red-600 hover:bg-red-500 text-white;
+}
+.btn-ghost {
+  @apply btn bg-transparent hover:bg-slate-700 text-slate-300;
+}
+.btn-outline {
+  @apply btn border border-slate-600 hover:bg-slate-700 text-slate-200;
+}
