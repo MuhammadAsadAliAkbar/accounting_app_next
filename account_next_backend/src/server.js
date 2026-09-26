@@ -20,7 +20,7 @@ app.use('/api/journal', require('./routes/journalRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Accounting API is running', timestamp: new Date() });
 });
 
