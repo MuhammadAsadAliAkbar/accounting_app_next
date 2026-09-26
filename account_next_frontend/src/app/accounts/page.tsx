@@ -15,7 +15,6 @@ import {
   Search,
   BookOpen,
   ChevronDown,
-  CircleCheck,
   AlertCircle,
   WalletCards,
   ArrowUpRight,
@@ -29,16 +28,50 @@ const TYPES: AccountType[] = [
   'Expense',
 ];
 
+type ApiError = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+};
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string
+): string {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error
+  ) {
+    const apiError = error as ApiError;
+
+    return (
+      apiError.response?.data?.message ||
+      fallback
+    );
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
   const [form, setForm] = useState({
     code: '',
     name: '',
     type: 'Asset' as AccountType,
     description: '',
   });
+
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -49,11 +82,14 @@ export default function AccountsPage() {
 
     getAccounts()
       .then((res) => setAccounts(res.data.data))
-      .catch((e) =>
+      .catch((error: unknown) => {
         setError(
-          e.response?.data?.message || 'Failed to load accounts'
-        )
-      )
+          getErrorMessage(
+            error,
+            'Failed to load accounts'
+          )
+        );
+      })
       .finally(() => setLoading(false));
   };
 
@@ -61,7 +97,9 @@ export default function AccountsPage() {
     load();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
     setError('');
 
@@ -78,10 +116,12 @@ export default function AccountsPage() {
       });
 
       load();
-    } catch (err: any) {
+    } catch (error: unknown) {
       setError(
-        err.response?.data?.message ||
+        getErrorMessage(
+          error,
           'Failed to create account'
+        )
       );
     }
   };
@@ -95,10 +135,12 @@ export default function AccountsPage() {
       await deleteAccount(id);
 
       load();
-    } catch (err: any) {
+    } catch (error: unknown) {
       setError(
-        err.response?.data?.message ||
+        getErrorMessage(
+          error,
           'Cannot delete this account'
+        )
       );
     } finally {
       setDeleting(null);
@@ -109,13 +151,21 @@ export default function AccountsPage() {
     const matchesType =
       !filter || account.type === filter;
 
-    const searchValue = search.toLowerCase().trim();
+    const searchValue = search
+      .toLowerCase()
+      .trim();
 
     const matchesSearch =
       !searchValue ||
-      account.code.toLowerCase().includes(searchValue) ||
-      account.name.toLowerCase().includes(searchValue) ||
-      account.type.toLowerCase().includes(searchValue);
+      account.code
+        .toLowerCase()
+        .includes(searchValue) ||
+      account.name
+        .toLowerCase()
+        .includes(searchValue) ||
+      account.type
+        .toLowerCase()
+        .includes(searchValue);
 
     return matchesType && matchesSearch;
   });
@@ -202,9 +252,7 @@ export default function AccountsPage() {
             >
               <div className="flex items-center justify-between">
                 <div
-                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                    typeIconColor[type]
-                  }`}
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${typeIconColor[type]}`}
                 >
                   <WalletCards size={17} />
                 </div>
@@ -236,6 +284,7 @@ export default function AccountsPage() {
             <p className="text-sm font-medium text-red-300">
               Something went wrong
             </p>
+
             <p className="mt-1 text-xs text-red-400/80">
               {error}
             </p>
@@ -321,6 +370,7 @@ export default function AccountsPage() {
           {filter && (
             <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/[0.06] px-3 py-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+
               <span className="text-xs text-blue-300">
                 Filter: {filter}
               </span>
@@ -339,6 +389,7 @@ export default function AccountsPage() {
           <div className="flex min-h-[360px] flex-col items-center justify-center">
             <div className="relative mb-4">
               <div className="h-10 w-10 rounded-full border-2 border-blue-500/20" />
+
               <div className="absolute inset-0 h-10 w-10 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
             </div>
 
@@ -449,7 +500,9 @@ export default function AccountsPage() {
                           onClick={() =>
                             handleDelete(account._id)
                           }
-                          disabled={deleting === account._id}
+                          disabled={
+                            deleting === account._id
+                          }
                           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-slate-600 transition-all hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                           title="Delete account"
                         >
@@ -505,7 +558,9 @@ export default function AccountsPage() {
                       onClick={() =>
                         handleDelete(account._id)
                       }
-                      disabled={deleting === account._id}
+                      disabled={
+                        deleting === account._id
+                      }
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-400"
                     >
                       {deleting === account._id ? (

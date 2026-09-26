@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -8,7 +7,6 @@ import { formatCurrency } from '@/components/Format';
 import {
   AlertCircle,
   ArrowRight,
-  BarChart3,
   CalendarDays,
   CheckCircle2,
   CircleDollarSign,
@@ -19,6 +17,7 @@ import {
   Scale,
   ShieldCheck,
   Wallet,
+  type LucideIcon,
 } from 'lucide-react';
 
 export default function BalanceSheetPage() {
@@ -36,9 +35,30 @@ export default function BalanceSheetPage() {
 
     getBalanceSheet(asOf)
       .then((res) => setData(res.data.data))
-      .catch((e) =>
-        setError(e.response?.data?.message || 'Failed to load')
-      )
+      .catch((e: unknown) => {
+        if (
+          typeof e === 'object' &&
+          e !== null &&
+          'response' in e
+        ) {
+          const errorResponse = e as {
+            response?: {
+              data?: {
+                message?: string;
+              };
+            };
+          };
+
+          setError(
+            errorResponse.response?.data?.message ||
+              'Failed to load'
+          );
+        } else if (e instanceof Error) {
+          setError(e.message);
+        } else {
+          setError('Failed to load');
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -64,11 +84,15 @@ export default function BalanceSheetPage() {
     iconBg,
   }: {
     title: string;
-    items: { code: string; name: string; amount: number }[];
+    items: {
+      code: string;
+      name: string;
+      amount: number;
+    }[];
     total: number;
     totalLabel: string;
     color: string;
-    icon: any;
+    icon: LucideIcon;
     iconBg: string;
   }) => (
     <section>
@@ -141,7 +165,9 @@ export default function BalanceSheetPage() {
                 {totalLabel}
               </span>
 
-              <span className={`font-mono text-sm font-bold ${color}`}>
+              <span
+                className={`font-mono text-sm font-bold ${color}`}
+              >
                 {formatCurrency(total)}
               </span>
             </div>
@@ -153,14 +179,9 @@ export default function BalanceSheetPage() {
 
   return (
     <div className="space-y-6 overflow-x-auto pb-10">
-      {/* =========================================================
-          FIXED WIDTH WRAPPER
-      ========================================================= */}
+      {/* Fixed Width Wrapper */}
       <div className="w-[1100px] space-y-6">
-
-        {/* =========================================================
-            PAGE HEADER
-        ========================================================= */}
+        {/* Page Header */}
         <div className="relative overflow-hidden rounded-2xl border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/30 p-6 shadow-xl shadow-black/10">
           <div className="pointer-events-none absolute -right-20 -top-20 h-60 w-60 rounded-full bg-blue-500/10 blur-3xl" />
 
@@ -191,7 +212,8 @@ export default function BalanceSheetPage() {
                 </h1>
 
                 <p className="mt-1 text-sm text-slate-400">
-                  Assets, liabilities and equity at a specific point in time
+                  Assets, liabilities and equity at a specific point in
+                  time
                 </p>
               </div>
             </div>
@@ -231,9 +253,7 @@ export default function BalanceSheetPage() {
           </div>
         </div>
 
-        {/* =========================================================
-            ERROR
-        ========================================================= */}
+        {/* Error */}
         {error && (
           <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
@@ -245,16 +265,12 @@ export default function BalanceSheetPage() {
                 Unable to generate report
               </p>
 
-              <p className="mt-0.5 text-red-400/80">
-                {error}
-              </p>
+              <p className="mt-0.5 text-red-400/80">{error}</p>
             </div>
           </div>
         )}
 
-        {/* =========================================================
-            LOADING
-        ========================================================= */}
+        {/* Loading */}
         {loading ? (
           <div className="w-[1100px] overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/70">
             <div className="border-b border-slate-700/60 p-7 text-center">
@@ -286,14 +302,8 @@ export default function BalanceSheetPage() {
             </div>
           </div>
         ) : data ? (
-          /* =====================================================
-             MAIN REPORT — FIXED 1100PX
-          ===================================================== */
           <div className="w-[1100px] overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/80 shadow-xl shadow-black/10">
-
-            {/* =====================================================
-                REPORT HEADER
-            ===================================================== */}
+            {/* Report Header */}
             <div className="relative overflow-hidden border-b border-slate-700/60 bg-gradient-to-r from-slate-800/80 via-slate-800/40 to-blue-950/20 p-6 text-center">
               <div className="pointer-events-none absolute left-1/2 top-0 h-40 w-64 -translate-x-1/2 rounded-full bg-blue-500/5 blur-3xl" />
 
@@ -358,11 +368,8 @@ export default function BalanceSheetPage() {
               </div>
             </div>
 
-            {/* =====================================================
-                SUMMARY CARDS
-            ===================================================== */}
+            {/* Summary Cards */}
             <div className="grid grid-cols-3 gap-3 border-b border-slate-700/60 bg-slate-950/20 p-4">
-
               {/* Assets */}
               <div className="group rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 transition-all hover:border-blue-500/20 hover:bg-blue-500/[0.03]">
                 <div className="flex items-center justify-between">
@@ -421,12 +428,8 @@ export default function BalanceSheetPage() {
               </div>
             </div>
 
-            {/* =====================================================
-                STATEMENT CONTENT
-            ===================================================== */}
+            {/* Statement Content */}
             <div className="space-y-7 p-7">
-
-              {/* Assets */}
               <Section
                 title="Assets"
                 items={data.assets}
@@ -437,7 +440,6 @@ export default function BalanceSheetPage() {
                 iconBg="bg-blue-500/10"
               />
 
-              {/* Connector */}
               <div className="flex items-center justify-center">
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
 
@@ -448,7 +450,6 @@ export default function BalanceSheetPage() {
                 <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
               </div>
 
-              {/* Liabilities */}
               <Section
                 title="Liabilities"
                 items={data.liabilities}
@@ -459,7 +460,6 @@ export default function BalanceSheetPage() {
                 iconBg="bg-amber-500/10"
               />
 
-              {/* Equity */}
               <Section
                 title="Equity"
                 items={data.equity}
@@ -470,9 +470,7 @@ export default function BalanceSheetPage() {
                 iconBg="bg-purple-500/10"
               />
 
-              {/* ===================================================
-                  ACCOUNTING EQUATION
-              =================================================== */}
+              {/* Accounting Equation */}
               <div className="relative overflow-hidden rounded-2xl border border-slate-600/70 bg-gradient-to-br from-slate-800/80 via-slate-800/50 to-blue-950/20 p-5">
                 <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-blue-500/10 blur-3xl" />
 
@@ -494,7 +492,6 @@ export default function BalanceSheetPage() {
                   </div>
 
                   <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-
                     <div className="rounded-xl border border-blue-500/15 bg-blue-500/5 p-4 text-center">
                       <p className="text-[10px] uppercase tracking-wider text-slate-500">
                         Assets
@@ -505,9 +502,7 @@ export default function BalanceSheetPage() {
                       </p>
                     </div>
 
-                    <span className="text-slate-600">
-                      =
-                    </span>
+                    <span className="text-slate-600">=</span>
 
                     <div className="rounded-xl border border-amber-500/15 bg-amber-500/5 p-4 text-center">
                       <p className="text-[10px] uppercase tracking-wider text-slate-500">
@@ -519,9 +514,7 @@ export default function BalanceSheetPage() {
                       </p>
                     </div>
 
-                    <span className="text-slate-600">
-                      +
-                    </span>
+                    <span className="text-slate-600">+</span>
 
                     <div className="rounded-xl border border-purple-500/15 bg-purple-500/5 p-4 text-center">
                       <p className="text-[10px] uppercase tracking-wider text-slate-500">
@@ -536,9 +529,7 @@ export default function BalanceSheetPage() {
                 </div>
               </div>
 
-              {/* ===================================================
-                  TOTAL LIABILITIES + EQUITY
-              =================================================== */}
+              {/* Total Liabilities + Equity */}
               <div
                 className={`relative overflow-hidden rounded-2xl border p-5 ${
                   data.isBalanced
@@ -594,9 +585,7 @@ export default function BalanceSheetPage() {
               </div>
             </div>
 
-            {/* =====================================================
-                FOOTER
-            ===================================================== */}
+            {/* Footer */}
             <div className="border-t border-slate-700/60 bg-slate-950/20 px-5 py-4">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <div className="flex items-center gap-2">
@@ -634,4 +623,3 @@ export default function BalanceSheetPage() {
     </div>
   );
 }
-

@@ -1,14 +1,31 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ElementType,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+
 import {
   getJournalEntries,
   createJournalEntry,
   getAccounts,
+  type JournalEntryPayload,
+  type JournalLinePayload,
 } from '@/lib/api';
+
 import { JournalEntry, Account } from '@/types';
-import { formatCurrency, formatDate } from '@/components/Format';
+import {
+  formatCurrency,
+  formatDate,
+} from '@/components/Format';
+
 import {
   Plus,
   X,
@@ -52,36 +69,71 @@ const getInitialForm = () => ({
 });
 
 export default function JournalPage() {
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [entries, setEntries] = useState<JournalEntry[]>(
+    []
+  );
+
+  const [accounts, setAccounts] = useState<Account[]>(
+    []
+  );
+
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(
+    null
+  );
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState(getInitialForm());
 
-  const load = () => {
-    setLoading(true);
+  /* --------------------------------
+     Load Journal Data
+  --------------------------------- */
 
-    Promise.all([getJournalEntries(), getAccounts()])
-      .then(([je, acc]) => {
-        setEntries(je.data.data);
-        setAccounts(acc.data.data);
-      })
-      .catch((e) =>
-        setError(
-          e.response?.data?.message ||
-            'Failed to load journal data'
-        )
-      )
-      .finally(() => setLoading(false));
-  };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const [je, acc] = await Promise.all([
+        getJournalEntries(),
+        getAccounts(),
+      ]);
+
+      setEntries(je.data.data);
+      setAccounts(acc.data.data);
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const responseData = err.response?.data;
+
+        if (
+          typeof responseData === 'object' &&
+          responseData !== null &&
+          'message' in responseData &&
+          typeof responseData.message === 'string'
+        ) {
+          setError(responseData.message);
+        } else {
+          setError('Failed to load journal data');
+        }
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to load journal data');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
+
+  /* --------------------------------
+     Transaction Lines
+  --------------------------------- */
 
   const addLine = () => {
     setForm((prev) => ({
@@ -94,11 +146,15 @@ export default function JournalPage() {
   };
 
   const removeLine = (idx: number) => {
-    if (form.lines.length <= 2) return;
+    if (form.lines.length <= 2) {
+      return;
+    }
 
     setForm((prev) => ({
       ...prev,
-      lines: prev.lines.filter((_, i) => i !== idx),
+      lines: prev.lines.filter(
+        (_, index) => index !== idx
+      ),
     }));
   };
 
@@ -110,12 +166,17 @@ export default function JournalPage() {
     setForm((prev) => {
       const lines = [...prev.lines];
 
+      const currentLine = lines[idx];
+
+      if (!currentLine) {
+        return prev;
+      }
+
       lines[idx] = {
-        ...lines[idx],
+        ...currentLine,
         [field]: value,
       };
 
-      // Clear opposite side when one side receives a value
       if (field === 'debit' && value) {
         lines[idx].credit = '';
       }
@@ -130,6 +191,10 @@ export default function JournalPage() {
       };
     });
   };
+
+  /* --------------------------------
+     Totals
+  --------------------------------- */
 
   const totalDebit = useMemo(
     () =>
@@ -158,6 +223,10 @@ export default function JournalPage() {
   const isBalanced =
     difference < 0.01 && totalDebit > 0;
 
+  /* --------------------------------
+     Form Controls
+  --------------------------------- */
+
   const handleOpenForm = () => {
     setError('');
     setForm(getInitialForm());
@@ -165,14 +234,20 @@ export default function JournalPage() {
   };
 
   const handleCloseForm = () => {
-    if (submitting) return;
+    if (submitting) {
+      return;
+    }
 
     setShowForm(false);
     setError('');
   };
 
+  /* --------------------------------
+     Submit Journal Entry
+  --------------------------------- */
+
   const handleSubmit = async (
-    e: React.FormEvent
+    e: FormEvent<HTMLFormElement>
   ) => {
     e.preventDefault();
     setError('');
@@ -197,29 +272,55 @@ export default function JournalPage() {
       return;
     }
 
-    try {
-      setSubmitting(true);
-
-      await createJournalEntry({
-        date: form.date,
-        description: form.description,
-        reference: form.reference,
-        lines: form.lines.map((line) => ({
+    const lines: JournalLinePayload[] =
+      form.lines.map(
+        (line): JournalLinePayload => ({
           account: line.account,
           debit: parseFloat(line.debit) || 0,
           credit: parseFloat(line.credit) || 0,
           description: line.description,
-        })),
-      });
+        })
+      );
+
+    const payload: JournalEntryPayload = {
+      date: form.date,
+      description: form.description,
+      reference: form.reference,
+      lines,
+    };
+
+    try {
+      setSubmitting(true);
+
+      await createJournalEntry(payload);
 
       setShowForm(false);
       setForm(getInitialForm());
-      load();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
+
+      await load();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const responseData = err.response?.data;
+
+        if (
+          typeof responseData === 'object' &&
+          responseData !== null &&
+          'message' in responseData &&
+          typeof responseData.message === 'string'
+        ) {
+          setError(responseData.message);
+        } else {
+          setError(
+            'Failed to create journal entry'
+          );
+        }
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(
           'Failed to create journal entry'
-      );
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -231,13 +332,15 @@ export default function JournalPage() {
     <div className="relative space-y-7 pb-10">
       {/* Background glow */}
       <div className="pointer-events-none absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-blue-500/[0.05] blur-3xl" />
-      <div className="pointer-events-none absolute top-96 right-0 h-72 w-72 rounded-full bg-violet-500/[0.04] blur-3xl" />
+
+      <div className="pointer-events-none absolute right-0 top-96 h-72 w-72 rounded-full bg-violet-500/[0.04] blur-3xl" />
 
       {/* Header */}
       <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/[0.07] px-3 py-1.5">
             <BookOpen className="h-3.5 w-3.5 text-blue-400" />
+
             <span className="text-xs font-medium text-blue-300">
               Double-Entry Accounting
             </span>
@@ -248,11 +351,13 @@ export default function JournalPage() {
           </h1>
 
           <p className="mt-2 text-sm text-slate-400 sm:text-base">
-            Record and review your double-entry financial transactions.
+            Record and review your double-entry financial
+            transactions.
           </p>
         </div>
 
         <button
+          type="button"
           onClick={handleOpenForm}
           className="group inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all duration-200 hover:-translate-y-0.5 hover:from-blue-500 hover:to-cyan-500 hover:shadow-blue-500/30"
         >
@@ -260,6 +365,7 @@ export default function JournalPage() {
             size={18}
             className="transition-transform duration-200 group-hover:rotate-90"
           />
+
           New Entry
         </button>
       </div>
@@ -305,6 +411,7 @@ export default function JournalPage() {
           </div>
 
           <button
+            type="button"
             onClick={() => setError('')}
             className="text-red-400/60 transition hover:text-red-300"
           >
@@ -328,6 +435,7 @@ export default function JournalPage() {
 
           <div className="hidden items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-1.5 sm:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_7px_rgba(52,211,153,0.7)]" />
+
             <span className="text-xs text-slate-400">
               Ledger active
             </span>
@@ -339,6 +447,7 @@ export default function JournalPage() {
             <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-900/50">
               <div className="relative mb-4">
                 <div className="h-10 w-10 rounded-full border-2 border-blue-500/20" />
+
                 <div className="absolute inset-0 h-10 w-10 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
               </div>
 
@@ -357,10 +466,12 @@ export default function JournalPage() {
               </h3>
 
               <p className="mt-1 max-w-sm text-xs text-slate-500">
-                Create your first double-entry transaction or run your seed data.
+                Create your first double-entry transaction or
+                run your seed data.
               </p>
 
               <button
+                type="button"
                 onClick={handleOpenForm}
                 className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-blue-500"
               >
@@ -396,6 +507,7 @@ export default function JournalPage() {
                 >
                   {/* Entry header */}
                   <button
+                    type="button"
                     onClick={() =>
                       setExpanded(
                         isOpen ? null : entry._id
@@ -405,7 +517,6 @@ export default function JournalPage() {
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex min-w-0 items-center gap-4">
-                        {/* Entry icon */}
                         <div
                           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
                             isOpen
@@ -640,6 +751,7 @@ export default function JournalPage() {
                                         <p className="text-[9px] uppercase tracking-wider text-slate-600">
                                           Debit
                                         </p>
+
                                         <p className="mt-0.5 font-mono text-xs text-slate-300">
                                           {line.debit
                                             ? formatCurrency(
@@ -653,6 +765,7 @@ export default function JournalPage() {
                                         <p className="text-[9px] uppercase tracking-wider text-slate-600">
                                           Credit
                                         </p>
+
                                         <p className="mt-0.5 font-mono text-xs text-slate-300">
                                           {line.credit
                                             ? formatCurrency(
@@ -697,7 +810,6 @@ export default function JournalPage() {
           />
 
           <div className="relative mx-auto my-6 w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900 shadow-2xl shadow-black/50 sm:my-10">
-            {/* Modal glow */}
             <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
 
             {/* Modal header */}
@@ -719,6 +831,7 @@ export default function JournalPage() {
               </div>
 
               <button
+                type="button"
                 onClick={handleCloseForm}
                 disabled={submitting}
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition hover:bg-slate-800 hover:text-white disabled:opacity-50"
@@ -735,6 +848,7 @@ export default function JournalPage() {
               <div className="rounded-2xl border border-slate-800/80 bg-slate-950/30 p-4 sm:p-5">
                 <div className="mb-4 flex items-center gap-2">
                   <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                     Entry Information
                   </h3>
@@ -753,17 +867,20 @@ export default function JournalPage() {
                         className="h-11 w-full rounded-xl border border-slate-800 bg-slate-900/70 pl-10 pr-3 text-sm text-slate-200 outline-none transition focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/10"
                         value={form.date}
                         onChange={(e) =>
-                          setForm({
-                            ...form,
+                          setForm((prev) => ({
+                            ...prev,
                             date: e.target.value,
-                          })
+                          }))
                         }
                         required
                       />
                     </div>
                   </FormField>
 
-                  <FormField label="Reference" optional>
+                  <FormField
+                    label="Reference"
+                    optional
+                  >
                     <div className="relative">
                       <Hash
                         size={16}
@@ -774,10 +891,10 @@ export default function JournalPage() {
                         className="h-11 w-full rounded-xl border border-slate-800 bg-slate-900/70 pl-10 pr-3 text-sm text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/10"
                         value={form.reference}
                         onChange={(e) =>
-                          setForm({
-                            ...form,
+                          setForm((prev) => ({
+                            ...prev,
                             reference: e.target.value,
-                          })
+                          }))
                         }
                         placeholder="e.g. INV-001"
                       />
@@ -789,10 +906,10 @@ export default function JournalPage() {
                       className="h-11 w-full rounded-xl border border-slate-800 bg-slate-900/70 px-3.5 text-sm text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-blue-500/40 focus:ring-2 focus:ring-blue-500/10"
                       value={form.description}
                       onChange={(e) =>
-                        setForm({
-                          ...form,
+                        setForm((prev) => ({
+                          ...prev,
                           description: e.target.value,
-                        })
+                        }))
                       }
                       placeholder="Entry description"
                       required
@@ -869,6 +986,7 @@ export default function JournalPage() {
                         <p className="text-[9px] uppercase tracking-wider text-slate-600">
                           Difference
                         </p>
+
                         <p className="font-mono text-xs font-semibold text-amber-400">
                           {formatCurrency(difference)}
                         </p>
@@ -878,7 +996,7 @@ export default function JournalPage() {
                 </div>
               </div>
 
-              {/* Lines */}
+              {/* Transaction lines */}
               <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/20">
                 <div className="flex items-center justify-between border-b border-slate-800/70 px-4 py-4 sm:px-5">
                   <div>
@@ -998,9 +1116,7 @@ export default function JournalPage() {
                             <td className="p-2">
                               <input
                                 className="h-10 w-full rounded-lg border border-slate-800 bg-slate-900/70 px-3 text-xs text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-blue-500/40 focus:ring-1 focus:ring-blue-500/10"
-                                value={
-                                  line.description
-                                }
+                                value={line.description}
                                 onChange={(e) =>
                                   updateLine(
                                     idx,
@@ -1013,8 +1129,7 @@ export default function JournalPage() {
                             </td>
 
                             <td className="px-2">
-                              {form.lines.length >
-                                2 && (
+                              {form.lines.length > 2 && (
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -1022,9 +1137,7 @@ export default function JournalPage() {
                                   }
                                   className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition hover:bg-red-500/10 hover:text-red-400"
                                 >
-                                  <Trash2
-                                    size={14}
-                                  />
+                                  <Trash2 size={14} />
                                 </button>
                               )}
                             </td>
@@ -1046,9 +1159,7 @@ export default function JournalPage() {
                               : 'text-red-400'
                           }`}
                         >
-                          {formatCurrency(
-                            totalDebit
-                          )}
+                          {formatCurrency(totalDebit)}
                         </td>
 
                         <td
@@ -1058,9 +1169,7 @@ export default function JournalPage() {
                               : 'text-red-400'
                           }`}
                         >
-                          {formatCurrency(
-                            totalCredit
-                          )}
+                          {formatCurrency(totalCredit)}
                         </td>
 
                         <td colSpan={2} />
@@ -1069,7 +1178,7 @@ export default function JournalPage() {
                   </table>
                 </div>
 
-                {/* Mobile / tablet */}
+                {/* Mobile / Tablet */}
                 <div className="divide-y divide-slate-800/60 lg:hidden">
                   {form.lines.map(
                     (line, idx) => (
@@ -1082,8 +1191,7 @@ export default function JournalPage() {
                             Line {idx + 1}
                           </span>
 
-                          {form.lines.length >
-                            2 && (
+                          {form.lines.length > 2 && (
                             <button
                               type="button"
                               onClick={() =>
@@ -1091,9 +1199,7 @@ export default function JournalPage() {
                               }
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-red-500/10 hover:text-red-400"
                             >
-                              <Trash2
-                                size={14}
-                              />
+                              <Trash2 size={14} />
                             </button>
                           )}
                         </div>
@@ -1163,9 +1269,7 @@ export default function JournalPage() {
 
                         <input
                           className="h-10 w-full rounded-lg border border-slate-800 bg-slate-900/70 px-3 text-xs text-slate-200 outline-none placeholder:text-slate-600 focus:border-blue-500/40"
-                          value={
-                            line.description
-                          }
+                          value={line.description}
                           onChange={(e) =>
                             updateLine(
                               idx,
@@ -1208,6 +1312,7 @@ export default function JournalPage() {
                   </div>
                 </div>
 
+                {/* Add line */}
                 <div className="border-t border-slate-800/70 p-4">
                   <button
                     type="button"
@@ -1279,7 +1384,7 @@ function SummaryCard({
   color,
   status = false,
 }: {
-  icon: React.ElementType;
+  icon: ElementType;
   label: string;
   value: string;
   color: 'blue' | 'violet' | 'emerald';
@@ -1344,7 +1449,7 @@ function FormField({
 }: {
   label: string;
   optional?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div>
@@ -1376,7 +1481,7 @@ function BalanceValue({
 }: {
   label: string;
   value: number;
-  icon: React.ElementType;
+  icon: ElementType;
 }) {
   return (
     <div>
